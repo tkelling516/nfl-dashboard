@@ -1,0 +1,11 @@
+# nfl_data_py's own metadata pins pandas<2.0, which has no Python 3.12 wheel
+# and fails to build from source. Install with: pip install --no-deps nfl_data_py
+# then install the rest of this file normally — pandas 2.x works fine with it.
+duckdb>=0.10
+nfl_data_py>=0.3.3
+pandas>=2.0
+numpy>=1.26
+requests
+appdirs
+fastparquet
+python-dateutil

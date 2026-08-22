@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Personal Claude Code permission state, not project config -- launch.json
+# (the dashboard preview config) is intentionally still tracked.
+.claude/settings.local.json
+
+# nfl_betting.duckdb is INTENTIONALLY tracked, not ignored -- Streamlit
+# Cloud has no separate data volume, so the dashboard reads the committed
+# copy of the DB straight from the repo. Re-commit it after every pipeline
+# run (see README.md "Updating the database").
