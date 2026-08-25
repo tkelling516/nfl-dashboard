@@ -76,13 +76,13 @@ def render(season: int, week: int, game_ids: list):
             help="Set to 0 to hide the vs-Line column.", key=f"opt_threshold_{prop_type}",
         )
 
-        st.markdown("**Factor weights**")
-        n_factors = len(spec["factors"])
-        default_w = round(100 / n_factors)
-        weights = {
-            f["key"]: st.slider(f["label"], 0, 100, default_w, help=f["description"], key=f"opt_w_{prop_type}_{f['key']}")
-            for f in spec["factors"]
-        }
+        # Equal weight across every factor for this prop type. Weights get
+        # normalized to sum to 1.0 in scoring.py regardless of their
+        # absolute value, so any *equal* constant here (1, 75, 100...)
+        # produces an identical result -- there's no real per-factor
+        # weighting control to expose, so no sliders. If per-factor
+        # weighting turns out to matter later, reintroduce it here.
+        weights = {f["key"]: 1 for f in spec["factors"]}
 
         st.markdown("**Minimum filters**")
         min_snap_pct = st.slider("Min snap %", 0, 100, 40, key="opt_min_snap") / 100.0
