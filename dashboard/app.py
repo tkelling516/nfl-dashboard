@@ -30,15 +30,34 @@ def _load_current_week():
     return queries_ext.get_current_week()
 
 
+def _resolve_week(current: dict) -> tuple[int, int, bool]:
+    """Normally the auto-detected current week. A `?season=YYYY&week=N` in
+    the URL previews a different week instead -- for testing against a
+    fuller slate than whatever the live current week happens to be (e.g.
+    a 1-game wild-card weekend). Never used by the deployed app unless
+    someone deliberately puts it in the URL; silently falls back to the
+    auto-detected week on anything malformed.
+    """
+    params = st.query_params
+    if "season" in params and "week" in params:
+        try:
+            return int(params["season"]), int(params["week"]), True
+        except ValueError:
+            pass
+    return current["season"], current["week"], False
+
+
 def main():
     current = _load_current_week()
-    season, week, is_fallback = current["season"], current["week"], current["is_fallback"]
-
-    if season is None:
+    if current["season"] is None:
         st.error("No game data found in the database yet. Run the ingestion pipeline first.")
         return
 
-    if is_fallback:
+    season, week, is_preview = _resolve_week(current)
+
+    if is_preview:
+        st.info(f"Previewing Season {season}, Week {week} — not the live current week. Remove `?season=&week=` from the URL to return to it.")
+    elif current["is_fallback"]:
         st.warning(
             f"Season hasn't started yet — showing most recent week available "
             f"(Season {season}, Week {week})."
