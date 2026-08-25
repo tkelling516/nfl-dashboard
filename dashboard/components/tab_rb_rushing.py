@@ -10,14 +10,11 @@ COLUMNS = [
     ("TD Prob", "td_probability", "pct1"),
     ("Matchup", "opp_rank_rush_yards_allowed_vs_rb", "matchup"),
     ("Opp Avg Allowed", "opp_avg_rush_yards_allowed_vs_rb", "float1"),
-    ("YTD Carries", "szn_carries", "int"),
-    ("YTD Rush Yds", "szn_rushing_yards", "int"),
+    ("YTD Avg Carries/G", "szn_avg_carries", "float1"),
     ("YTD Avg Yds/G", "szn_avg_rush_yds", "float1"),
-    ("L5 Carries", "l5_carries", "int"),
-    ("L5 Rush Yds", "l5_rushing_yards", "int"),
+    ("L5 Avg Carries/G", "l5_avg_carries", "float1"),
     ("L5 Avg Yds/G", "l5_avg_rush_yds", "float1"),
-    ("L3 Carries", "l3_carries", "int"),
-    ("L3 Rush Yds", "l3_rushing_yards", "int"),
+    ("L3 Avg Carries/G", "l3_avg_carries", "float1"),
     ("L3 Avg Yds/G", "l3_avg_rush_yds", "float1"),
 ]
 

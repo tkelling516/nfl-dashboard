@@ -298,6 +298,10 @@ def get_weekly_position_board(
         df["l3_avg_rush_yds"] = df["l3_rushing_yards_pg"]
         df["l3_avg_rec_yds"] = df["l3_receiving_yards_pg"]
 
+        df["szn_avg_carries"] = df["szn_carries_pg"]
+        df["l5_avg_carries"] = df["l5_carries_pg"]
+        df["l3_avg_carries"] = df["l3_carries_pg"]
+
         drop_cols = [c for c in df.columns if c.endswith("_pg")] + ["games_l5", "games_l3", "rn"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns])
 
