@@ -4,9 +4,13 @@ the generic position-board table renderer used by all four tabs.
 NULL is never rendered as 0 anywhere in this module -- per the analytics
 layer's contract, NULL means "no qualifying data," so it always renders as
 the em dash below.
-"""
 
-import html
+Tables render via st.dataframe (not a hand-built HTML table) specifically
+so column headers get Streamlit's native click-to-sort for free. The
+tradeoff: the Matchup column is a plain colored cell (via a pandas Styler)
+rather than a rounded badge -- st.dataframe's grid can't render arbitrary
+HTML inside a cell, only CSS on the cell itself.
+"""
 
 import pandas as pd
 import streamlit as st
@@ -53,17 +57,10 @@ def fmt_pct(value, decimals: int = 1) -> str:
     return f"{value * 100:.{decimals}f}%"
 
 
-def fmt_rank(rank, pool_size) -> str:
-    """"25 of 31" style rank display. NULL_DISPLAY if either is missing --
-    never assumes a 32-team pool."""
-    if rank is None or pool_size is None or pd.isna(rank) or pd.isna(pool_size):
-        return NULL_DISPLAY
-    return f"{int(rank)} of {int(pool_size)}"
-
-
 def default_sort(df: pd.DataFrame, rank_col: str) -> pd.DataFrame:
     """matchup_advantage=True first, then by rank_col descending (worst
-    defenses / best matchups at top). NaN ranks sort last."""
+    defenses / best matchups at top). NaN ranks sort last. This is just the
+    *initial* row order -- clicking any column header re-sorts from there."""
     out = df.copy()
     out["_adv"] = out["matchup_advantage"].fillna(False)
     out["_rank_sort"] = out[rank_col].fillna(-1)
@@ -71,61 +68,12 @@ def default_sort(df: pd.DataFrame, rank_col: str) -> pd.DataFrame:
     return out.drop(columns=["_adv", "_rank_sort"]).reset_index(drop=True)
 
 
-_TABLE_CSS = """
-<style>
-.nfl-board-wrap { overflow-x: auto; }
-.nfl-board { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-.nfl-board th {
-    text-align: right; padding: 8px 10px; background: #262730;
-    color: #fafafa; position: sticky; top: 0; white-space: nowrap;
-    border-bottom: 2px solid #3a3b47;
+_FORMATTERS = {
+    "int": lambda v: fmt_num(v, 0),
+    "float1": lambda v: fmt_num(v, 1),
+    "pct1": fmt_pct,
+    "matchup": lambda v: fmt_num(v, 0),
 }
-.nfl-board th:first-child, .nfl-board th:nth-child(2), .nfl-board th:nth-child(3) { text-align: left; }
-.nfl-board td { padding: 6px 10px; border-bottom: 1px solid #262730; color: #e6e6e6; white-space: nowrap; }
-.nfl-board tbody tr:nth-child(odd) { background: #1a1c24; }
-.nfl-board tbody tr:hover { background: #2a2c38; }
-.nfl-badge {
-    display: inline-block; padding: 2px 9px; border-radius: 10px;
-    color: #fff; font-weight: 600; font-size: 0.85rem;
-}
-</style>
-"""
-
-
-def _render_table_html(df: pd.DataFrame, columns: list[tuple[str, str, str]], rank_col: str, pool_col: str) -> str:
-    header_html = "".join(f"<th>{html.escape(h)}</th>" for h, _, _ in columns)
-    row_chunks = []
-    for _, row in df.iterrows():
-        cells = []
-        for header, col, kind in columns:
-            if kind == "matchup":
-                rank, pool = row[rank_col], row[pool_col]
-                label = fmt_rank(rank, pool)
-                if label == NULL_DISPLAY:
-                    cells.append(f'<td style="text-align:center;color:{NULL_COLOR};">{NULL_DISPLAY}</td>')
-                else:
-                    color = get_matchup_color(rank, pool)
-                    cells.append(
-                        f'<td style="text-align:center;"><span class="nfl-badge" '
-                        f'style="background:{color};">{label}</span></td>'
-                    )
-            elif kind == "str":
-                val = row[col]
-                text = NULL_DISPLAY if val is None or pd.isna(val) else html.escape(str(val))
-                cells.append(f"<td>{text}</td>")
-            elif kind == "pct1":
-                cells.append(f'<td style="text-align:right;">{fmt_pct(row[col])}</td>')
-            else:
-                decimals = 1 if kind == "float1" else 0
-                cells.append(f'<td style="text-align:right;">{fmt_num(row[col], decimals)}</td>')
-        row_chunks.append("<tr>" + "".join(cells) + "</tr>")
-
-    return (
-        _TABLE_CSS
-        + '<div class="nfl-board-wrap"><table class="nfl-board">'
-        + f"<thead><tr>{header_html}</tr></thead><tbody>{''.join(row_chunks)}</tbody>"
-        + "</table></div>"
-    )
 
 
 def render_position_tab(
@@ -135,11 +83,11 @@ def render_position_tab(
     key_prefix: str,
     pool_col: str = "opp_pool_size",
 ) -> None:
-    """Render a full position board tab: min-games filter, sort control,
-    color-coded matchup table. `columns` is a list of
+    """Render a full position board tab: min-games filter, then a
+    click-to-sort, color-coded table. `columns` is a list of
     (header, source_column, kind) where kind is one of "str", "int",
-    "float1", "matchup". `rank_col` is the opp_rank_* column this tab's
-    Matchup badge/default-sort is based on.
+    "float1", "pct1", "matchup". `rank_col` is the opp_rank_* column the
+    Matchup column's color and the initial sort order are based on.
     """
     if df.empty:
         st.info("No qualifying players found for this selection.")
@@ -153,14 +101,25 @@ def render_position_tab(
         st.info("No players meet that games-played threshold.")
         return
 
-    sortable_headers = ["Best Matchup (default)"] + [h for h, _, kind in columns if kind != "str"]
-    sort_choice = st.selectbox("Sort by", sortable_headers, key=f"{key_prefix}_sort")
+    sorted_df = default_sort(filtered, rank_col)
+    matchup_header = next(h for h, _, kind in columns if kind == "matchup")
+    pool_size = sorted_df[pool_col].max()  # constant across one board; NaN only if no team has data yet
 
-    if sort_choice == "Best Matchup (default)":
-        sorted_df = default_sort(filtered, rank_col)
+    display = pd.DataFrame({header: sorted_df[col] for header, col, _kind in columns})
+    formatters = {header: _FORMATTERS[kind] for header, _col, kind in columns if kind in _FORMATTERS}
+
+    styler = display.style.format(formatters).map(
+        lambda v: f"background-color: {get_matchup_color(v, pool_size)}; color: white",
+        subset=[matchup_header],
+    )
+
+    if pd.notna(pool_size):
+        st.caption(f"{len(sorted_df)} players — defensive ranks out of {int(pool_size)} teams with data through this week")
     else:
-        sort_col = next(col for h, col, _ in columns if h == sort_choice)
-        sorted_df = filtered.sort_values(sort_col, ascending=False, na_position="last").reset_index(drop=True)
+        st.caption(f"{len(sorted_df)} players")
 
-    st.caption(f"{len(sorted_df)} players")
-    st.markdown(_render_table_html(sorted_df, columns, rank_col, pool_col), unsafe_allow_html=True)
+    st.dataframe(
+        styler,
+        column_order=[h for h, _, _ in columns],
+        hide_index=True,
+    )
