@@ -118,8 +118,12 @@ def render_position_tab(
     else:
         st.caption(f"{len(sorted_df)} players")
 
+    pinned_headers = [h for h, _, _ in columns[:2]]
+    column_config = {h: st.column_config.Column(pinned=True) for h in pinned_headers}
+
     st.dataframe(
         styler,
         column_order=[h for h, _, _ in columns],
+        column_config=column_config,
         hide_index=True,
     )
