@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import streamlit as st
 
 import queries_ext
-from components import game_selector, tab_rb_rushing, tab_rb_receiving, tab_wr_receiving, tab_te_receiving
+from components import game_selector, tab_td_scorer, tab_rb_rushing, tab_rb_receiving, tab_wr_receiving, tab_te_receiving
 
 st.set_page_config(page_title="NFL Props Dashboard", page_icon="🏈", layout="wide")
 
@@ -41,15 +41,17 @@ def main():
 
     game_ids = game_selector.render(season, week)
 
-    tabs = st.tabs(["🏃 RB Rushing", "🏃 RB Receiving", "🏈 WR Receiving", "🏈 TE Receiving"])
+    tabs = st.tabs(["🎯 TD Scorer", "🏃 RB Rushing", "🏃 RB Receiving", "🏈 WR Receiving", "🏈 TE Receiving"])
 
     with tabs[0]:
-        tab_rb_rushing.render(season, week, game_ids)
+        tab_td_scorer.render(season, week, game_ids)
     with tabs[1]:
-        tab_rb_receiving.render(season, week, game_ids)
+        tab_rb_rushing.render(season, week, game_ids)
     with tabs[2]:
-        tab_wr_receiving.render(season, week, game_ids)
+        tab_rb_receiving.render(season, week, game_ids)
     with tabs[3]:
+        tab_wr_receiving.render(season, week, game_ids)
+    with tabs[4]:
         tab_te_receiving.render(season, week, game_ids)
 
 

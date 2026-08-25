@@ -68,12 +68,34 @@ def default_sort(df: pd.DataFrame, rank_col: str) -> pd.DataFrame:
     return out.drop(columns=["_adv", "_rank_sort"]).reset_index(drop=True)
 
 
-_FORMATTERS = {
+FORMATTERS = {
     "int": lambda v: fmt_num(v, 0),
     "float1": lambda v: fmt_num(v, 1),
     "pct1": fmt_pct,
     "matchup": lambda v: fmt_num(v, 0),
 }
+
+
+def build_styler(df: pd.DataFrame, columns: list[tuple[str, str, str]]):
+    """(display_df, styler) for a (header, source_column, kind) column
+    spec, with every numeric kind formatted NULL-safely via FORMATTERS.
+    Doesn't apply matchup coloring -- chain `.map(...)` onto the returned
+    styler for that (see render_position_tab)."""
+    display = pd.DataFrame({header: df[col] for header, col, _kind in columns})
+    formatters = {header: FORMATTERS[kind] for header, _col, kind in columns if kind in FORMATTERS}
+    return display, display.style.format(formatters)
+
+
+def render_table(headers: list[str], styler, pinned_count: int = 2) -> None:
+    """st.dataframe with the first `pinned_count` columns pinned and
+    native click-to-sort (the whole reason this uses st.dataframe over a
+    hand-built HTML table)."""
+    st.dataframe(
+        styler,
+        column_order=headers,
+        column_config={h: st.column_config.Column(pinned=True) for h in headers[:pinned_count]},
+        hide_index=True,
+    )
 
 
 def render_position_tab(
@@ -105,10 +127,8 @@ def render_position_tab(
     matchup_header = next(h for h, _, kind in columns if kind == "matchup")
     pool_size = sorted_df[pool_col].max()  # constant across one board; NaN only if no team has data yet
 
-    display = pd.DataFrame({header: sorted_df[col] for header, col, _kind in columns})
-    formatters = {header: _FORMATTERS[kind] for header, _col, kind in columns if kind in _FORMATTERS}
-
-    styler = display.style.format(formatters).map(
+    _display, styler = build_styler(sorted_df, columns)
+    styler = styler.map(
         lambda v: f"background-color: {get_matchup_color(v, pool_size)}; color: white",
         subset=[matchup_header],
     )
@@ -118,12 +138,4 @@ def render_position_tab(
     else:
         st.caption(f"{len(sorted_df)} players")
 
-    pinned_headers = [h for h, _, _ in columns[:2]]
-    column_config = {h: st.column_config.Column(pinned=True) for h in pinned_headers}
-
-    st.dataframe(
-        styler,
-        column_order=[h for h, _, _ in columns],
-        column_config=column_config,
-        hide_index=True,
-    )
+    render_table([h for h, _, _ in columns], styler)
