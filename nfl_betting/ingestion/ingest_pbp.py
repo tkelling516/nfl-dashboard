@@ -21,13 +21,20 @@ PBP_COLUMNS = [
     "rush_attempt", "return_team", "penalty",
     "route", "offense_personnel", "defenders_in_box", "was_pressure",
     "time_to_throw", "defense_coverage_type", "two_point_attempt",
-    "home_team", "away_team",
+    "goal_to_go", "home_team", "away_team",
 ]
 
 BOOL_COLUMNS = [
     "first_down", "touchdown", "complete_pass", "pass_attempt",
     "rush_attempt", "penalty", "was_pressure", "two_point_attempt",
+    "goal_to_go",
 ]
+
+# Per-game context (spread, total, weather, division-game flag) -- lives on
+# core_games (the game dimension), not pbp_plays. nfl_data_py serves it from
+# a separate, much lighter schedules endpoint rather than the play-by-play
+# merge; import_schedules()'s game_id matches pbp's game_id directly.
+SCHEDULE_COLUMNS = ["game_id", "spread_line", "total_line", "roof", "temp", "wind", "div_game"]
 
 # route/offense_personnel/defense_coverage_type come through as "" rather than
 # NaN when untracked (e.g. non-pass plays) -- treat both as missing.
@@ -50,6 +57,12 @@ def _load_pbp() -> pd.DataFrame:
         pbp[col] = pbp[col].replace("", None)
     pbp["game_date"] = pd.to_datetime(pbp["game_date"]).dt.date
     return pbp
+
+
+def _load_schedules() -> pd.DataFrame:
+    sched = nfl.import_schedules(SEASONS)[SCHEDULE_COLUMNS].copy()
+    sched["div_game"] = sched["div_game"].fillna(0).astype(bool)
+    return sched
 
 
 def load_core_teams(con, pbp: pd.DataFrame) -> int:
@@ -75,10 +88,11 @@ def load_core_teams(con, pbp: pd.DataFrame) -> int:
     return len(teams)
 
 
-def load_core_games(con, pbp: pd.DataFrame) -> int:
+def load_core_games(con, pbp: pd.DataFrame, schedules: pd.DataFrame) -> int:
     games = (
         pbp[["game_id", "game_date", "season", "week", "home_team", "away_team"]]
         .drop_duplicates("game_id")
+        .merge(schedules, on="game_id", how="left")
     )
     con.register("games_df", games)
     con.execute("""
@@ -89,7 +103,13 @@ def load_core_games(con, pbp: pd.DataFrame) -> int:
             season = excluded.season,
             week = excluded.week,
             home_team = excluded.home_team,
-            away_team = excluded.away_team
+            away_team = excluded.away_team,
+            spread_line = excluded.spread_line,
+            total_line = excluded.total_line,
+            roof = excluded.roof,
+            temp = excluded.temp,
+            wind = excluded.wind,
+            div_game = excluded.div_game
     """)
     con.unregister("games_df")
     return len(games)
@@ -114,8 +134,9 @@ def load_pbp_plays(con, pbp: pd.DataFrame) -> int:
 if __name__ == "__main__":
     con = get_connection()
     pbp = _load_pbp()
+    schedules = _load_schedules()
     print(f"loaded {len(pbp)} pbp rows for seasons {SEASONS}")
     print(f"core_teams: upserted {load_core_teams(con, pbp)} rows")
-    print(f"core_games: upserted {load_core_games(con, pbp)} rows")
+    print(f"core_games: upserted {load_core_games(con, pbp, schedules)} rows")
     print(f"pbp_plays: upserted {load_pbp_plays(con, pbp)} rows")
     con.close()

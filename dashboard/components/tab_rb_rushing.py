@@ -7,6 +7,7 @@ COLUMNS = [
     ("Player", "player_name", "str"),
     ("Team", "team", "str"),
     ("Opponent", "opponent", "str"),
+    ("TD Prob", "td_probability", "pct1"),
     ("Matchup", "opp_rank_rush_yards_allowed_vs_rb", "matchup"),
     ("Opp Avg Allowed", "opp_avg_rush_yards_allowed_vs_rb", "float1"),
     ("STD Carries", "szn_carries", "int"),

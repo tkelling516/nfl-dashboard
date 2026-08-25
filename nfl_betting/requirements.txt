@@ -9,3 +9,4 @@ requests
 appdirs
 fastparquet
 python-dateutil
+scikit-learn>=1.4

@@ -224,11 +224,13 @@ SELECT
     dr.rank_rec_yards_allowed_vs_te AS opp_rank_rec_yards_allowed_vs_te,
     dr.avg_targets_allowed_vs_te AS opp_avg_targets_allowed_vs_te,
     dr.rank_targets_allowed_vs_te AS opp_rank_targets_allowed_vs_te,
-    dr.pool_size AS opp_pool_size
+    dr.pool_size AS opp_pool_size,
+    td.td_probability
 FROM roster r
 JOIN player_stats_asof ps ON ps.player_id = r.player_id
 JOIN core_players cp ON cp.player_id = r.player_id
 LEFT JOIN defense_ranked dr ON dr.defteam = r.opponent
+LEFT JOIN agg_td_probability td ON td.player_id = r.player_id AND td.game_id = r.game_id
 """
 
 # Which opp_ column family (vs_rb / vs_wr / vs_te) + primary-stat rank

@@ -46,6 +46,13 @@ def fmt_num(value, decimals: int = 0) -> str:
     return f"{value:,.{decimals}f}"
 
 
+def fmt_pct(value, decimals: int = 1) -> str:
+    """Render a 0-1 probability/share as a percentage, or NULL_DISPLAY."""
+    if value is None or pd.isna(value):
+        return NULL_DISPLAY
+    return f"{value * 100:.{decimals}f}%"
+
+
 def fmt_rank(rank, pool_size) -> str:
     """"25 of 31" style rank display. NULL_DISPLAY if either is missing --
     never assumes a 32-team pool."""
@@ -106,6 +113,8 @@ def _render_table_html(df: pd.DataFrame, columns: list[tuple[str, str, str]], ra
                 val = row[col]
                 text = NULL_DISPLAY if val is None or pd.isna(val) else html.escape(str(val))
                 cells.append(f"<td>{text}</td>")
+            elif kind == "pct1":
+                cells.append(f'<td style="text-align:right;">{fmt_pct(row[col])}</td>')
             else:
                 decimals = 1 if kind == "float1" else 0
                 cells.append(f'<td style="text-align:right;">{fmt_num(row[col], decimals)}</td>')

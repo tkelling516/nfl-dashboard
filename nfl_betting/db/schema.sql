@@ -20,8 +20,22 @@ CREATE TABLE IF NOT EXISTS core_games (
     season      INTEGER,
     week        INTEGER,
     home_team   VARCHAR,
-    away_team   VARCHAR
+    away_team   VARCHAR,
+    spread_line DOUBLE,
+    total_line  DOUBLE,
+    roof        VARCHAR,
+    temp        DOUBLE,
+    wind        DOUBLE,
+    div_game    BOOLEAN
 );
+
+-- Migration for pre-existing databases created before these columns existed.
+ALTER TABLE core_games ADD COLUMN IF NOT EXISTS spread_line DOUBLE;
+ALTER TABLE core_games ADD COLUMN IF NOT EXISTS total_line DOUBLE;
+ALTER TABLE core_games ADD COLUMN IF NOT EXISTS roof VARCHAR;
+ALTER TABLE core_games ADD COLUMN IF NOT EXISTS temp DOUBLE;
+ALTER TABLE core_games ADD COLUMN IF NOT EXISTS wind DOUBLE;
+ALTER TABLE core_games ADD COLUMN IF NOT EXISTS div_game BOOLEAN;
 
 CREATE TABLE IF NOT EXISTS pbp_plays (
     game_id             VARCHAR,
@@ -58,6 +72,7 @@ CREATE TABLE IF NOT EXISTS pbp_plays (
     time_to_throw             DOUBLE,
     defense_coverage_type      VARCHAR,
     two_point_attempt          BOOLEAN,
+    goal_to_go                 BOOLEAN,
     PRIMARY KEY (game_id, play_id)
 );
 
@@ -69,6 +84,7 @@ ALTER TABLE pbp_plays ADD COLUMN IF NOT EXISTS was_pressure BOOLEAN;
 ALTER TABLE pbp_plays ADD COLUMN IF NOT EXISTS time_to_throw DOUBLE;
 ALTER TABLE pbp_plays ADD COLUMN IF NOT EXISTS defense_coverage_type VARCHAR;
 ALTER TABLE pbp_plays ADD COLUMN IF NOT EXISTS two_point_attempt BOOLEAN;
+ALTER TABLE pbp_plays ADD COLUMN IF NOT EXISTS goal_to_go BOOLEAN;
 
 CREATE TABLE IF NOT EXISTS agg_player_game (
     player_id             VARCHAR,

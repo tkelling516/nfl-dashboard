@@ -75,7 +75,7 @@ In dictionary source order (roughly: game/situation → play description → sco
 | `sp` | Binary indicator for whether or not a score occurred on the play. |  |
 | `qtr` | Quarter of the game (5 is overtime). |  |
 | `down` | The down for the given play. | ✅ |
-| `goal_to_go` | Binary indicator for whether or not the posteam is in a goal down situation. |  |
+| `goal_to_go` | Binary indicator for whether or not the posteam is in a goal down situation. | ✅ |
 | `time` | Time at start of play provided in string format as minutes:seconds remaining in the quarter. |  |
 | `yrdln` | String indicating the current field position for a given play. |  |
 | `ydstogo` | Numeric yards in distance from either the first down marker or the endzone in goal down situations. | ✅ |

@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import SEASONS
 from db import get_connection
 from ingestion.ingest_rosters import load_core_players
-from ingestion.ingest_pbp import _load_pbp, load_core_teams, load_core_games, load_pbp_plays
+from ingestion.ingest_pbp import _load_pbp, _load_schedules, load_core_teams, load_core_games, load_pbp_plays
 from ingestion.ingest_aggregates import load_agg_player_game, load_agg_team_game
 
 
@@ -21,9 +21,10 @@ def main() -> None:
 
     print("[2/5] Loading play-by-play -> core_teams, core_games, pbp_plays")
     pbp = _load_pbp()
+    schedules = _load_schedules()
     print(f"  loaded {len(pbp)} plays")
     print(f"  upserted {load_core_teams(con, pbp)} teams")
-    print(f"  upserted {load_core_games(con, pbp)} games")
+    print(f"  upserted {load_core_games(con, pbp, schedules)} games")
     print(f"  upserted {load_pbp_plays(con, pbp)} plays")
     del pbp
 
