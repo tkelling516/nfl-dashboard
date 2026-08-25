@@ -331,3 +331,104 @@ def get_weekly_position_board(
         return _build(con)
     with connect() as c:
         return _build(c)
+
+
+# ---------------------------------------------------------------------------
+# Picks Optimizer support. Deliberately separate from get_weekly_position_board
+# rather than added to it -- these are optimizer-specific factors the other
+# four tabs have no use for, and keeping them out avoids any risk of
+# regressing the existing boards. The optimizer tab merges these onto a
+# get_weekly_position_board() result itself (on player_id / opponent).
+# ---------------------------------------------------------------------------
+
+_OPTIMIZER_FACTOR_SQL = """
+WITH recent_games AS (
+    SELECT player_id, targets, snap_count,
+           ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY week DESC) AS rn
+    FROM agg_player_game
+    WHERE season = ? AND week <= ? AND position = ?
+),
+target_rate_l3 AS (
+    -- Targets per snap over the trailing 3 games played (ratio of sums,
+    -- not a mean of per-game ratios -- a single low-snap cameo game would
+    -- otherwise swing a mean-of-ratios wildly; see l3_carry_share/
+    -- l3_target_share below for where this codebase's usual mean-of-ratios
+    -- convention is used instead, for shares that are already per-game
+    -- fractions rather than raw counts).
+    SELECT player_id,
+        CASE WHEN SUM(snap_count) > 0 THEN SUM(targets)::DOUBLE / SUM(snap_count) ELSE NULL END AS l3_target_rate
+    FROM recent_games
+    WHERE rn <= 3
+    GROUP BY player_id
+),
+air_yards_szn AS (
+    SELECT player_id,
+        CASE WHEN SUM(targets) > 0 THEN SUM(air_yards)::DOUBLE / SUM(targets) ELSE NULL END AS szn_air_yards_per_target
+    FROM agg_player_game
+    WHERE season = ? AND week <= ? AND position = ?
+    GROUP BY player_id
+),
+shares AS (
+    -- l3_carry_share / l3_target_share already exist as properly-computed
+    -- rolling averages (mean of each game's own share, the same convention
+    -- every other share metric in this schema uses) -- reused as-is rather
+    -- than reconstructed from team-level totals.
+    SELECT player_id, l3_carry_share, l3_target_share,
+           ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY week DESC) AS rn
+    FROM agg_player_season_to_date
+    WHERE season = ? AND week <= ?
+)
+SELECT
+    rg.player_id,
+    tr.l3_target_rate,
+    ay.szn_air_yards_per_target,
+    sh.l3_carry_share,
+    sh.l3_target_share
+FROM (SELECT DISTINCT player_id FROM recent_games) rg
+LEFT JOIN target_rate_l3 tr ON tr.player_id = rg.player_id
+LEFT JOIN air_yards_szn ay ON ay.player_id = rg.player_id
+LEFT JOIN shares sh ON sh.player_id = rg.player_id AND sh.rn = 1
+"""
+
+
+def get_optimizer_player_factors(
+    season: int, week: int, position: str, con: duckdb.DuckDBPyConnection | None = None
+) -> pd.DataFrame:
+    """Per-player supplementary factors for the Picks Optimizer that
+    get_weekly_position_board doesn't carry: l3_target_rate (targets per
+    snap, trailing 3 games), szn_air_yards_per_target, and the existing
+    l3_carry_share/l3_target_share passed through unchanged. One row per
+    player_id with any game at or before `week` in `season` at `position`
+    -- callers should LEFT JOIN this onto a board, not treat it as a
+    roster (it doesn't check who's actually playing this week).
+    """
+    params = [season, week, position, season, week, position, season, week]
+    if con is not None:
+        return con.execute(_OPTIMIZER_FACTOR_SQL, params).fetchdf()
+    with connect() as c:
+        return c.execute(_OPTIMIZER_FACTOR_SQL, params).fetchdf()
+
+
+_DEFENSE_BOX_SQL = """
+WITH ranked AS (
+    SELECT defteam, week, avg_defenders_in_box,
+           ROW_NUMBER() OVER (PARTITION BY defteam ORDER BY week DESC) AS rn
+    FROM agg_team_defense_season
+    WHERE season = ? AND week <= ?
+)
+SELECT defteam, avg_defenders_in_box AS opp_avg_defenders_in_box
+FROM ranked
+WHERE rn = 1
+"""
+
+
+def get_defense_box_factor(season: int, week: int, con: duckdb.DuckDBPyConnection | None = None) -> pd.DataFrame:
+    """One row per team with data at or before `week`: their as-of average
+    defenders-in-box (run-support aggression). Used by the RB rushing
+    factor -- fewer defenders in the box is better for the rusher.
+    """
+    params = [season, week]
+    if con is not None:
+        return con.execute(_DEFENSE_BOX_SQL, params).fetchdf()
+    with connect() as c:
+        return c.execute(_DEFENSE_BOX_SQL, params).fetchdf()

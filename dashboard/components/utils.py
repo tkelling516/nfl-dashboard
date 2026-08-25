@@ -73,6 +73,7 @@ FORMATTERS = {
     "float1": lambda v: fmt_num(v, 1),
     "pct1": fmt_pct,
     "matchup": lambda v: fmt_num(v, 0),
+    "ratio1": lambda v: NULL_DISPLAY if v is None or pd.isna(v) else f"{v:.1f}x",
 }
 
 
