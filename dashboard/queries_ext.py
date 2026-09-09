@@ -209,6 +209,15 @@ SELECT
     ps.l3_receptions AS l3_receptions_pg,
     ps.l3_targets AS l3_targets_pg,
 
+    -- l1_* is literally that one game's value (a window of 1 game has
+    -- nothing to average) -- passed through directly, no total/avg split
+    -- needed the way l3_/l5_/szn_ get reconstructed below.
+    ps.l1_rushing_yards,
+    ps.l1_carries,
+    ps.l1_receiving_yards,
+    ps.l1_receptions,
+    ps.l1_targets,
+
     dr.opp_as_of_week,
     dr.avg_rush_yards_allowed_vs_rb AS opp_avg_rush_yards_allowed_vs_rb,
     dr.rank_rush_yards_allowed_vs_rb AS opp_rank_rush_yards_allowed_vs_rb,

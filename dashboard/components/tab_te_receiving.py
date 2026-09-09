@@ -19,6 +19,9 @@ COLUMNS = [
     ("L3 Avg Targets/G", "l3_avg_targets", "float1"),
     ("L3 Avg Receptions/G", "l3_avg_receptions", "float1"),
     ("L3 Avg Yds/G", "l3_avg_rec_yds", "float1"),
+    ("L1 Targets", "l1_targets", "int"),
+    ("L1 Receptions", "l1_receptions", "int"),
+    ("L1 Rec Yds", "l1_receiving_yards", "int"),
 ]
 
 

@@ -16,6 +16,8 @@ COLUMNS = [
     ("L5 Avg Yds/G", "l5_avg_rush_yds", "float1"),
     ("L3 Avg Carries/G", "l3_avg_carries", "float1"),
     ("L3 Avg Yds/G", "l3_avg_rush_yds", "float1"),
+    ("L1 Carries", "l1_carries", "int"),
+    ("L1 Rush Yds", "l1_rushing_yards", "int"),
 ]
 
 

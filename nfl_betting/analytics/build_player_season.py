@@ -43,6 +43,7 @@ METRIC_SOURCE = {
 }
 
 WINDOWS = {
+    "l1": "ROWS BETWEEN CURRENT ROW AND CURRENT ROW",
     "l3": "ROWS BETWEEN 2 PRECEDING AND CURRENT ROW",
     "l5": "ROWS BETWEEN 4 PRECEDING AND CURRENT ROW",
     "szn": "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
@@ -179,6 +180,11 @@ def load_agg_player_season_to_date(con) -> int:
     con.execute(CREATE_TABLE_SQL)
     # Migration for pre-existing tables built before is_active_week existed.
     con.execute("ALTER TABLE agg_player_season_to_date ADD COLUMN IF NOT EXISTS is_active_week BOOLEAN;")
+    # Migration for pre-existing tables built before the l1 window existed
+    # (and forward-compatible if another window ever gets added the same
+    # way -- ADD COLUMN IF NOT EXISTS is a no-op for columns already there).
+    for col in WINDOWED_COLUMNS:
+        con.execute(f"ALTER TABLE agg_player_season_to_date ADD COLUMN IF NOT EXISTS {col} DOUBLE;")
 
     cols = ", ".join(AGG_PLAYER_SEASON_COLUMNS)
     update_clause = ",\n            ".join(
