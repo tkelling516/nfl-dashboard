@@ -30,11 +30,20 @@ BOOL_COLUMNS = [
     "goal_to_go",
 ]
 
-# Per-game context (spread, total, weather, division-game flag) -- lives on
-# core_games (the game dimension), not pbp_plays. nfl_data_py serves it from
-# a separate, much lighter schedules endpoint rather than the play-by-play
-# merge; import_schedules()'s game_id matches pbp's game_id directly.
-SCHEDULE_COLUMNS = ["game_id", "spread_line", "total_line", "roof", "temp", "wind", "div_game"]
+# core_games is built entirely from this schedules endpoint, NOT from
+# pbp_plays -- pbp only ever has rows for games that have already been
+# played, so deriving the game dimension table from it (the original
+# design) meant core_games could never contain an upcoming/unplayed game,
+# which silently broke "auto-detect the current week" for any week that
+# hadn't been played yet (it always fell back to "most recent played
+# week" instead, looking exactly like an extended offseason). Schedules
+# are published for the full season in advance, unplayed games included.
+# Verified game_id matches pbp_plays' own game_id format exactly (285/285
+# for a fully-played season, byte-for-byte).
+CORE_GAMES_COLUMNS = [
+    "game_id", "season", "week", "gameday", "home_team", "away_team",
+    "spread_line", "total_line", "roof", "temp", "wind", "div_game",
+]
 
 # route/offense_personnel/defense_coverage_type come through as "" rather than
 # NaN when untracked (e.g. non-pass plays) -- treat both as missing.
@@ -60,7 +69,9 @@ def _load_pbp() -> pd.DataFrame:
 
 
 def _load_schedules() -> pd.DataFrame:
-    sched = nfl.import_schedules(SEASONS)[SCHEDULE_COLUMNS].copy()
+    sched = nfl.import_schedules(SEASONS)[CORE_GAMES_COLUMNS].copy()
+    sched = sched.rename(columns={"gameday": "game_date"})
+    sched["game_date"] = pd.to_datetime(sched["game_date"]).dt.date
     sched["div_game"] = sched["div_game"].fillna(0).astype(bool)
     return sched
 
@@ -88,12 +99,11 @@ def load_core_teams(con, pbp: pd.DataFrame) -> int:
     return len(teams)
 
 
-def load_core_games(con, pbp: pd.DataFrame, schedules: pd.DataFrame) -> int:
-    games = (
-        pbp[["game_id", "game_date", "season", "week", "home_team", "away_team"]]
-        .drop_duplicates("game_id")
-        .merge(schedules, on="game_id", how="left")
-    )
+def load_core_games(con, schedules: pd.DataFrame) -> int:
+    games = schedules.drop_duplicates("game_id")[
+        ["game_id", "game_date", "season", "week", "home_team", "away_team",
+         "spread_line", "total_line", "roof", "temp", "wind", "div_game"]
+    ]
     con.register("games_df", games)
     con.execute("""
         INSERT INTO core_games
@@ -137,6 +147,6 @@ if __name__ == "__main__":
     schedules = _load_schedules()
     print(f"loaded {len(pbp)} pbp rows for seasons {SEASONS}")
     print(f"core_teams: upserted {load_core_teams(con, pbp)} rows")
-    print(f"core_games: upserted {load_core_games(con, pbp, schedules)} rows")
+    print(f"core_games: upserted {load_core_games(con, schedules)} rows")
     print(f"pbp_plays: upserted {load_pbp_plays(con, pbp)} rows")
     con.close()

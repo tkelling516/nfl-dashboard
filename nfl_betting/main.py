@@ -19,12 +19,12 @@ def main() -> None:
     print("[1/5] Loading rosters -> core_players")
     print(f"  upserted {load_core_players(con)} players")
 
-    print("[2/5] Loading play-by-play -> core_teams, core_games, pbp_plays")
+    print("[2/5] Loading play-by-play -> core_teams, pbp_plays; schedules -> core_games")
     pbp = _load_pbp()
     schedules = _load_schedules()
-    print(f"  loaded {len(pbp)} plays")
+    print(f"  loaded {len(pbp)} plays, {len(schedules)} scheduled games")
     print(f"  upserted {load_core_teams(con, pbp)} teams")
-    print(f"  upserted {load_core_games(con, pbp, schedules)} games")
+    print(f"  upserted {load_core_games(con, schedules)} games")
     print(f"  upserted {load_pbp_plays(con, pbp)} plays")
     del pbp
 
