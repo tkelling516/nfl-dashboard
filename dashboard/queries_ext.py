@@ -194,6 +194,7 @@ SELECT
     ps.szn_targets AS szn_targets_pg,
     ps.szn_touchdowns AS szn_touchdowns_pg,
     ps.szn_snap_pct,
+    ps.szn_carry_share,
     ps.szn_red_zone_target_share_avg,
     ps.szn_red_zone_rush_share_avg,
 
