@@ -32,4 +32,21 @@ def _load(season: int, week: int, game_ids: tuple):
 
 def render(season: int, week: int, game_ids: list):
     df = _load(season, week, tuple(sorted(game_ids)))
+
+    if not df.empty:
+        filter_mode = st.radio(
+            "Filter to relevant tight ends by", ["Season avg targets/game", "Season avg receptions/game"],
+            horizontal=True, key="te_rec_filter_mode",
+        )
+        if filter_mode == "Season avg targets/game":
+            min_targets = st.number_input(
+                "Min avg targets/game", min_value=0.0, max_value=20.0, value=3.0, step=0.5, key="te_rec_min_targets",
+            )
+            df = df[df["szn_avg_targets"] >= min_targets]
+        else:
+            min_receptions = st.number_input(
+                "Min avg receptions/game", min_value=0.0, max_value=15.0, value=2.0, step=0.5, key="te_rec_min_receptions",
+            )
+            df = df[df["szn_avg_receptions"] >= min_receptions]
+
     utils.render_position_tab(df, COLUMNS, rank_col="opp_rank_rec_yards_allowed_vs_te", key_prefix="te_rec")
