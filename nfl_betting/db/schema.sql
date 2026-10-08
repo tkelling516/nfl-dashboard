@@ -170,8 +170,21 @@ CREATE TABLE IF NOT EXISTS external_injuries (
     status      VARCHAR,
     injury      VARCHAR,
     report_date DATE,
-    source      VARCHAR
+    source      VARCHAR,
+    season      INTEGER,
+    week        INTEGER,
+    player_id   VARCHAR,
+    position    VARCHAR
 );
+
+-- Migration for pre-existing databases created before these columns existed.
+-- season/week scope each row to the game week it applies to; player_id is
+-- the nflverse gsis_id, which is the same id as core_players.player_id, so
+-- the dashboard joins on it exactly rather than matching names.
+ALTER TABLE external_injuries ADD COLUMN IF NOT EXISTS season INTEGER;
+ALTER TABLE external_injuries ADD COLUMN IF NOT EXISTS week INTEGER;
+ALTER TABLE external_injuries ADD COLUMN IF NOT EXISTS player_id VARCHAR;
+ALTER TABLE external_injuries ADD COLUMN IF NOT EXISTS position VARCHAR;
 
 CREATE TABLE IF NOT EXISTS external_news (
     player_name  VARCHAR,

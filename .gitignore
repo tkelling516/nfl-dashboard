@@ -4,6 +4,10 @@ __pycache__/
 venv/
 .env
 
+# Local Streamlit secrets (API keys) -- set these in Streamlit Cloud's app
+# settings for the deployed app, never commit them.
+**/.streamlit/secrets.toml
+
 # Personal Claude Code permission state, not project config -- launch.json
 # (the dashboard preview config) is intentionally still tracked.
 .claude/settings.local.json

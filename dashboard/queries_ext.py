@@ -210,15 +210,6 @@ SELECT
     ps.l3_receptions AS l3_receptions_pg,
     ps.l3_targets AS l3_targets_pg,
 
-    -- l1_* is literally that one game's value (a window of 1 game has
-    -- nothing to average) -- passed through directly, no total/avg split
-    -- needed the way l3_/l5_/szn_ get reconstructed below.
-    ps.l1_rushing_yards,
-    ps.l1_carries,
-    ps.l1_receiving_yards,
-    ps.l1_receptions,
-    ps.l1_targets,
-
     dr.opp_as_of_week,
     dr.avg_rush_yards_allowed_vs_rb AS opp_avg_rush_yards_allowed_vs_rb,
     dr.rank_rush_yards_allowed_vs_rb AS opp_rank_rush_yards_allowed_vs_rb,
@@ -442,3 +433,81 @@ def get_defense_box_factor(season: int, week: int, con: duckdb.DuckDBPyConnectio
         return con.execute(_DEFENSE_BOX_SQL, params).fetchdf()
     with connect() as c:
         return c.execute(_DEFENSE_BOX_SQL, params).fetchdf()
+
+
+# ---------------------------------------------------------------------------
+# Game environment (Vegas lines) and injuries, for the position-tab "Impl
+# Total" / "Status" columns and the Injuries tab.
+# ---------------------------------------------------------------------------
+
+_GAME_LINES_SQL = """
+WITH latest_odds AS (
+    SELECT game_id, spread, total,
+           ROW_NUMBER() OVER (PARTITION BY game_id ORDER BY timestamp DESC NULLS LAST) AS rn
+    FROM betting_game_odds
+    WHERE spread IS NOT NULL AND total IS NOT NULL
+)
+SELECT
+    g.game_id, g.home_team, g.away_team,
+    -- core_games.spread_line is nflverse's convention (positive = home
+    -- favored); betting_game_odds.spread and this function's output use
+    -- the betting convention (negative = home favored), hence the sign flip.
+    COALESCE(o.spread, -g.spread_line) AS spread,
+    COALESCE(o.total, g.total_line) AS total
+FROM core_games g
+LEFT JOIN latest_odds o ON o.game_id = g.game_id AND o.rn = 1
+WHERE g.season = ? AND g.week = ?
+ORDER BY g.game_date, g.game_id
+"""
+
+
+def get_game_lines(season: int, week: int, con: duckdb.DuckDBPyConnection | None = None) -> pd.DataFrame:
+    """One row per game in (season, week): spread (negative = home
+    favorite), total (over/under), and each side's implied team total --
+    home_implied = total/2 - spread/2, away_implied = total/2 + spread/2.
+
+    Lines come from betting_game_odds when it has a row with both a spread
+    and a total for the game (most recent timestamp wins), otherwise from
+    the Vegas lines already stored on core_games (spread_line/total_line
+    from nfl_data_py's schedule data) -- so this works today, before any
+    odds feed is connected. A game with no line from either source stays
+    in the result with NaN spread/total/implied (callers render that as an
+    em dash). Empty DataFrame if core_games has no games for that week.
+    """
+
+    def _build(c):
+        df = c.execute(_GAME_LINES_SQL, [season, week]).fetchdf()
+        if df.empty:
+            return df
+        df["home_implied"] = df["total"] / 2 - df["spread"] / 2
+        df["away_implied"] = df["total"] / 2 + df["spread"] / 2
+        return df
+
+    if con is not None:
+        return _build(con)
+    with connect() as c:
+        return _build(c)
+
+
+_INJURY_REPORT_SQL = """
+SELECT player_id, player_name, team, position, status, injury, report_date
+FROM external_injuries
+WHERE season = ? AND week = ?
+"""
+
+
+def get_injury_report(season: int, week: int, con: duckdb.DuckDBPyConnection | None = None) -> pd.DataFrame:
+    """The stored injury designations for (season, week), raw as ingested
+    (status is nflverse's own wording: Out / Doubtful / Questionable).
+    Empty DataFrame if none have been published/ingested for that week --
+    or if this database predates the season/week/player_id columns (it
+    hasn't been through the pipeline since they were added): injuries are an
+    optional overlay, so that shouldn't take every position tab down.
+    """
+    try:
+        if con is not None:
+            return con.execute(_INJURY_REPORT_SQL, [season, week]).fetchdf()
+        with connect() as c:
+            return c.execute(_INJURY_REPORT_SQL, [season, week]).fetchdf()
+    except (duckdb.BinderException, duckdb.CatalogException):
+        return pd.DataFrame(columns=["player_id", "player_name", "team", "position", "status", "injury", "report_date"])

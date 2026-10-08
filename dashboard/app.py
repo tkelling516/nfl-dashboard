@@ -13,7 +13,9 @@ import streamlit as st
 
 import queries_ext
 from components import (
+    board_context,
     game_selector,
+    tab_injuries,
     tab_td_scorer,
     tab_rb_rushing,
     tab_rb_receiving,
@@ -67,9 +69,11 @@ def main():
     st.header(f"Week {week} — {season} Season")
 
     game_ids = game_selector.render(season, week)
+    board_context.render_sidebar_filter(season, week)
 
     tabs = st.tabs([
         "🎯 TD Scorer", "🏃 RB Rushing", "🏃 RB Receiving", "🏈 WR Receiving", "🏈 TE Receiving", "🧮 Picks Optimizer",
+        "🏥 Injuries",
     ])
 
     with tabs[0]:
@@ -84,6 +88,8 @@ def main():
         tab_te_receiving.render(season, week, game_ids)
     with tabs[5]:
         tab_picks_optimizer.render(season, week, game_ids)
+    with tabs[6]:
+        tab_injuries.render(season, week, game_ids)
 
 
 if __name__ == "__main__":

@@ -42,6 +42,53 @@ def get_matchup_color(rank, pool_size) -> str:
     return _MATCHUP_COLORS["worst"]
 
 
+# Implied team total bands: (floor, color), checked top-down; below the last
+# floor is red. A total exactly on a boundary lands in the higher band.
+_IMPL_TOTAL_BANDS = ((27, "#2e7d32"), (24, "#81c784"), (21, "#f57c00"))
+_IMPL_TOTAL_LOW = "#d32f2f"
+
+
+def get_impl_total_color(total) -> str:
+    """Hex color for a team's implied total (high-scoring environment =
+    green, low = red). Grey for NULL -- no line posted for that game."""
+    if total is None or pd.isna(total):
+        return NULL_COLOR
+    for floor, color in _IMPL_TOTAL_BANDS:
+        if total >= floor:
+            return color
+    return _IMPL_TOTAL_LOW
+
+
+# nflverse's wording -> the short code the player tables show. "IR" never
+# appears in the weekly report today but maps to OUT if it ever does.
+_STATUS_CODES = {"out": "OUT", "ir": "OUT", "injured reserve": "OUT", "doubtful": "D", "questionable": "Q"}
+STATUS_LABELS = {"OUT": "Out", "D": "Doubtful", "Q": "Questionable"}
+STATUS_SEVERITY = {"OUT": 0, "D": 1, "Q": 2}
+# (background, text) per status code.
+_STATUS_STYLES = {"OUT": ("#d32f2f", "white"), "D": ("#f57c00", "white"), "Q": ("#fdd835", "#1a1a1a")}
+
+# Muted look for a player who's OUT: the grid can't do real opacity (it only
+# honors color / background-color from a Styler), so grey text, and a flat
+# dark fill in place of any colored cell.
+_OUT_TEXT = "color: #7d7d7d"
+_OUT_FILL = "background-color: #3a3a3a; color: #8a8a8a"
+
+
+def normalize_injury_status(raw) -> str:
+    """'Out'/'Doubtful'/'Questionable' (any case) -> 'OUT'/'D'/'Q';
+    anything else, including NULL, -> '' (no designation, nothing shown)."""
+    if raw is None or pd.isna(raw):
+        return ""
+    return _STATUS_CODES.get(str(raw).strip().lower(), "")
+
+
+def status_cell_style(code: str) -> str:
+    bg_fg = _STATUS_STYLES.get(code)
+    if bg_fg is None:
+        return ""
+    return f"background-color: {bg_fg[0]}; color: {bg_fg[1]}; font-weight: bold"
+
+
 def fmt_num(value, decimals: int = 0) -> str:
     """Render a numeric value, or NULL_DISPLAY if NaN/None. Never 0 for a
     missing value -- callers must pass an actual 0 to see "0"."""
@@ -73,6 +120,7 @@ FORMATTERS = {
     "float1": lambda v: fmt_num(v, 1),
     "pct1": fmt_pct,
     "matchup": lambda v: fmt_num(v, 0),
+    "impl_total": lambda v: fmt_num(v, 1),
     "ratio1": lambda v: NULL_DISPLAY if v is None or pd.isna(v) else f"{v:.1f}x",
 }
 
@@ -99,18 +147,50 @@ def render_table(headers: list[str], styler, pinned_count: int = 2) -> None:
     )
 
 
+def _make_row_styles(columns: list[tuple[str, str, str]], pool_size):
+    """One function that styles every cell of a row, so colored cells
+    (Matchup, Impl Total, Status) and the muted look for OUT players are
+    decided together -- separate .map()/.apply() passes layering on the
+    same cell would leave CSS precedence up to the grid."""
+    headers = [h for h, _, _ in columns]
+    kinds = {h: kind for h, _, kind in columns}
+    status_headers = [h for h in headers if kinds[h] == "status"]
+
+    def row_styles(row):
+        is_out = any(row[h] == "OUT" for h in status_headers)
+        styles = []
+        for h in headers:
+            kind = kinds[h]
+            if kind == "status":
+                styles.append(status_cell_style(row[h]))
+            elif kind in ("matchup", "impl_total"):
+                if is_out:
+                    styles.append(_OUT_FILL)
+                else:
+                    color = get_matchup_color(row[h], pool_size) if kind == "matchup" else get_impl_total_color(row[h])
+                    styles.append(f"background-color: {color}; color: white")
+            else:
+                styles.append(_OUT_TEXT if is_out else "")
+        return styles
+
+    return row_styles
+
+
 def render_position_tab(
     df: pd.DataFrame,
     columns: list[tuple[str, str, str]],
     rank_col: str,
     key_prefix: str,
     pool_col: str = "opp_pool_size",
+    pinned_count: int = 2,
 ) -> None:
     """Render a full position board tab: min-games filter, then a
     click-to-sort, color-coded table. `columns` is a list of
     (header, source_column, kind) where kind is one of "str", "int",
-    "float1", "pct1", "matchup". `rank_col` is the opp_rank_* column the
-    Matchup column's color and the initial sort order are based on.
+    "float1", "pct1", "matchup", "impl_total", "status". `rank_col` is the
+    opp_rank_* column the Matchup column's color and the initial sort order
+    are based on. A "status" column holds OUT/D/Q (or "") and, when it says
+    OUT, mutes the rest of that player's row.
     """
     if df.empty:
         st.info("No qualifying players found for this selection.")
@@ -125,18 +205,14 @@ def render_position_tab(
         return
 
     sorted_df = default_sort(filtered, rank_col)
-    matchup_header = next(h for h, _, kind in columns if kind == "matchup")
     pool_size = sorted_df[pool_col].max()  # constant across one board; NaN only if no team has data yet
 
     _display, styler = build_styler(sorted_df, columns)
-    styler = styler.map(
-        lambda v: f"background-color: {get_matchup_color(v, pool_size)}; color: white",
-        subset=[matchup_header],
-    )
+    styler = styler.apply(_make_row_styles(columns, pool_size), axis=1)
 
     if pd.notna(pool_size):
         st.caption(f"{len(sorted_df)} players — defensive ranks out of {int(pool_size)} teams with data through this week")
     else:
         st.caption(f"{len(sorted_df)} players")
 
-    render_table([h for h, _, _ in columns], styler)
+    render_table([h for h, _, _ in columns], styler, pinned_count=pinned_count)

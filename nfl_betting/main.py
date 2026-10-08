@@ -9,6 +9,7 @@ from config import SEASONS
 from db import get_connection
 from ingestion.ingest_rosters import load_core_players
 from ingestion.ingest_pbp import _load_pbp, _load_schedules, load_core_teams, load_core_games, load_pbp_plays
+from ingestion.ingest_injuries import ingest_injuries
 from ingestion.ingest_aggregates import load_agg_player_game, load_agg_team_game
 
 
@@ -16,10 +17,10 @@ def main() -> None:
     con = get_connection()
     print(f"Running pipeline for seasons {SEASONS}\n")
 
-    print("[1/5] Loading rosters -> core_players")
+    print("[1/6] Loading rosters -> core_players")
     print(f"  upserted {load_core_players(con)} players")
 
-    print("[2/5] Loading play-by-play -> core_teams, pbp_plays; schedules -> core_games")
+    print("[2/6] Loading play-by-play -> core_teams, pbp_plays; schedules -> core_games")
     pbp = _load_pbp()
     schedules = _load_schedules()
     print(f"  loaded {len(pbp)} plays, {len(schedules)} scheduled games")
@@ -28,13 +29,16 @@ def main() -> None:
     print(f"  upserted {load_pbp_plays(con, pbp)} plays")
     del pbp
 
-    print("[3/5] Computing agg_player_game (incl. participation staging)")
+    print("[3/6] Loading current-week injury report -> external_injuries")
+    print(f"  wrote {ingest_injuries(con)} designated injuries")
+
+    print("[4/6] Computing agg_player_game (incl. participation staging)")
     print(f"  total rows: {load_agg_player_game(con)}")
 
-    print("[4/5] Computing agg_team_game")
+    print("[5/6] Computing agg_team_game")
     print(f"  total rows: {load_agg_team_game(con)}")
 
-    print("[5/5] betting_* and external_* tables created empty (deferred ingestion)")
+    print("[6/6] betting_* tables created empty (deferred ingestion)")
 
     con.close()
     print("\nPipeline complete.")

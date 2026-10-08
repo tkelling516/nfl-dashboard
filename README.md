@@ -31,10 +31,19 @@ no live connection to a hosted database. After new games are played:
    ```
 4. Streamlit Cloud redeploys automatically on push.
 
+Step 1 also pulls the current week's injury report. Teams publish their
+game-day designations (Out / Doubtful / Questionable) through the week,
+mostly Friday, so re-run steps 1–4 later in the week for fresher injury
+status; early in the week the report is short or empty.
+
 ## Deploying to Streamlit Cloud
 
 - Main file path: `dashboard/app.py`
 - `dashboard/requirements.txt` and `dashboard/.streamlit/config.toml` are
   picked up automatically from the app's own directory.
-- No secrets/config needed — `dashboard/config.py` locates the DB file
-  relative to the repo root at runtime.
+- `dashboard/config.py` locates the DB file relative to the repo root at
+  runtime, so the dashboard itself needs no configuration.
+- Optional: to enable the Injuries tab's AI analysis, add `ANTHROPIC_API_KEY`
+  under the app's Settings → Secrets. Without it the tab still shows the
+  injury report and just notes that AI analysis isn't configured. For local
+  runs, put the same line in `dashboard/.streamlit/secrets.toml` (git-ignored).
